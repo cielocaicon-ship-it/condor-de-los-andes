@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0b1630">
+<title>Cóndor de los Andes</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="juego"></div>
+
+<!-- ============ HUD ============ -->
+<div id="hud" class="oculto">
+  <div id="hudIzq" class="caja-hud">
+    <div class="fila"><span class="ico">❤️</span><div class="barra"><i id="bVida"></i></div><span id="txtVida">100</span></div>
+    <div class="fila"><span class="ico">🚀</span><span id="txtCohetes">6</span><span class="ico" style="margin-left:auto">🔫</span><div class="barra" style="max-width:90px"><i id="bCalor"></i></div></div>
+    <div class="fila"><span class="ico">🐶</span><div class="barra"><i id="bLadrido"></i></div><span id="txtLadrido" style="font-size:11px"></span></div>
+  </div>
+  <div id="hudCentro" class="caja-hud"><div id="txtNivel">Cúcuta</div><div id="txtAnio">2030</div><div id="txtOleada">¡Prepárate!</div><div id="txtReloj">⏱ 20:00</div></div>
+  <div id="hudDer" class="caja-hud">
+    <div>⭐ <span id="txtPuntos">0</span></div>
+    <div>🤖 Faltan: <span id="txtFaltan">0</span></div>
+    <canvas id="radar" width="104" height="104"></canvas>
+  </div>
+  <div id="jefeCaja" class="oculto"><span id="jefeNombre">Jefe</span><div class="barra"><i id="bJefe"></i></div></div>
+  <div id="capaBarras"></div>
+  <div id="capaPuntos"></div>
+  <div id="mira"></div>
+  <div id="impacto"></div>
+  <div id="adelanto" class="oculto"></div>
+  <div id="fijado" class="oculto"></div>
+  <div id="marcaPortal" class="oculto"></div>
+  <div id="aviso"></div>
+  <div id="tip"></div>
+  <div id="globoNucita" class="globo"></div>
+  <div id="globoJefe" class="globo"></div>
+  <div id="flash"></div>
+</div>
+<div id="tiempoFlash"></div>
+
+<!-- ============ CONTROLES TÁCTILES ============ -->
+<div id="tactil" class="oculto">
+  <div id="joystick"><div id="perilla"></div></div>
+  <button class="btnT" id="tFuego" data-a="fuego">🔥</button>
+  <button class="btnT" id="tCohete" data-a="cohete">🚀</button>
+  <button class="btnT" id="tLadrido" data-a="ladrido">🐶</button>
+  <button class="btnT" id="tAcel" data-a="acel">⚡</button>
+  <button class="btnT" id="tCamara" data-a="camara">🎥</button>
+  <button class="btnT" id="tPausa" data-a="pausa">II</button>
+</div>
+
+<!-- ============ PANTALLA DE INICIO ============ -->
+<div id="pInicio" class="pantalla">
+  <div class="panel">
+    <h1>Cóndor de<br>los Andes</h1>
+    <div class="subt">Un viaje por la historia de Colombia · con Nucita de copiloto 🐶</div>
+    <div style="font-weight:bold;font-size:14px">Elige tu piloto:</div>
+    <div class="avatares">
+      <button class="avatar" id="avNina"><span class="cara">👧</span>Jugar con María</button>
+      <button class="avatar" id="avNino"><span class="cara">👦</span>Jugar con Pedro</button>
+    </div>
+    <div style="font-weight:bold;font-size:14px">Dificultad:</div>
+    <div class="avatares modos">
+      <button class="avatar" id="dfNormal"><span class="cara">🙂</span>Normal<small>Ayuda para apuntar</small></button>
+      <button class="avatar" id="dfDificil"><span class="cara">😈</span>Difícil<small>Más enemigos y más fuertes</small></button>
+    </div>
+    <button class="btn" id="btnJugar">¡A volar! ✈️</button>
+    <button class="btn sec" id="btnIntro">Ver intro 🎬</button>
+    <button class="btn sec" id="btnHangar">Hangar ✈️</button>
+    <button class="btn sec" id="btnControles">Controles</button>
+    <div class="niveles" id="listaNiveles"></div>
+    <label class="opcion oculto" id="filaGiro"><input type="checkbox" id="chkGiro"> Manejar inclinando el celular (giroscopio)</label>
+    <label class="opcion oculto" id="filaMouse"><input type="checkbox" id="chkMouse"> Dirigir con el mouse (apuntar más fácil)</label>
+    <div class="record" id="txtTiempoMenu"></div>
+    <div class="record" id="txtRecord"></div>
+    <div id="panelControles" class="oculto"></div>
+  </div>
+</div>
+
+<!-- ============ INTRO DE CINE ============ -->
+<div id="pIntro" class="pantalla oculto">
+  <div class="franja arriba"></div><div class="franja abajo"></div>
+  <div id="introAvion" class="oculto"><div id="introAvionNombre"></div><div id="introAvionAnio"></div></div>
+  <div id="introTexto"></div>
+  <button class="btn sec" id="btnSaltar">Saltar ⏭</button>
+</div>
+
+<!-- ============ HANGAR DEL TIEMPO ============ -->
+<div id="pHangar" class="pantalla oculto">
+  <div class="panel">
+    <div class="subt" style="margin:0">HANGAR DEL TIEMPO · los aviones de cada época</div>
+    <div class="hgFila"><button class="btn sec" id="hgAnt">◀</button><h2 id="hgNombre" style="margin:0"></h2><button class="btn sec" id="hgSig">▶</button></div>
+    <div id="hgAnio"></div><p id="hgDesc"></p><div id="hgDonde"></div>
+    <button class="btn" id="hgVolver">Volver</button>
+  </div>
+</div>
+
+<!-- ============ PAUSA ============ -->
+<div id="pPausa" class="pantalla oculto">
+  <div class="panel">
+    <h2>Pausa</h2>
+    <p>Nucita aprovecha para rascarse una oreja 🐶</p>
+    <button class="btn" id="btnContinuar">Continuar</button><br>
+    <button class="btn sec" id="btnCalibrar">Calibrar giroscopio</button>
+    <button class="btn sec" id="btnReiniciar">Reiniciar nivel</button>
+    <button class="btn sec" id="btnMenu1">Menú</button>
+  </div>
+</div>
+
+<!-- ============ NIVEL COMPLETADO ============ -->
+<div id="pNivel" class="pantalla oculto">
+  <div class="panel">
+    <h2 id="tituloNivelOk">¡Misión cumplida!</h2>
+    <p id="resNivel"></p>
+    <button class="btn" id="btnSiguiente">Siguiente época ➜</button>
+    <button class="btn sec" id="btnMenu2">Menú</button>
+  </div>
+</div>
+
+<!-- ============ GAME OVER ============ -->
+<div id="pGameOver" class="pantalla oculto">
+  <div class="panel">
+    <h2>¡Nos derribaron!</h2>
+    <p>Nucita dice: "¡Guau! ¡Intentémoslo otra vez, yo sé que podemos!"</p>
+    <p id="resGO"></p>
+    <button class="btn" id="btnReintentar">Reintentar nivel</button>
+    <button class="btn sec" id="btnMenu3">Menú</button>
+  </div>
+</div>
+
+<!-- ============ SE ACABÓ EL TIEMPO ============ -->
+<div id="pTiempo" class="pantalla oculto">
+  <div class="panel">
+    <h2>⏱ ¡Se acabó el tiempo!</h2>
+    <p>Petunia alcanzó a cambiar la historia de Colombia... 🌸🤖</p>
+    <p>Los niveles que habías superado se borraron. Nucita dice: "¡Guau! ¡Volvamos a empezar desde el patio, esta vez más rápido!"</p>
+    <button class="btn" id="btnEmpezarDeNuevo">Volver a empezar</button>
+  </div>
+</div>
+
+<!-- ============ VICTORIA FINAL ============ -->
+<div id="pFinal" class="pantalla oculto">
+  <div class="panel">
+    <h2 id="finTitulo">¡Victoria!</h2>
+    <p id="finTexto"></p>
+    <button class="btn" id="btnMenu4">Volver al menú</button>
+  </div>
+</div>
+
+<!-- ============ MAPA ENTRE NIVELES ============ -->
+<div id="pMapa" class="pantalla oculto">
+  <div class="panel">
+    <div id="colMapa">
+      <canvas id="canvasMapa" width="300" height="360"></canvas>
+      <div id="lineaTiempo"></div>
+    </div>
+    <div id="dialogo"><div id="tituloMapa"></div><div id="subMapa"></div><div id="lineas"></div>
+      <button class="btn" id="btnVamos">¡Vamos! ✈️</button>
+    </div>
+  </div>
+</div>
+
+<div id="girar" class="oculto"><div class="tel">📱</div>Gira tu celular para jugar<br>en horizontal</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
