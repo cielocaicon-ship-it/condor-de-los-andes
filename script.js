@@ -124,6 +124,9 @@ const Sonido = {
     }
   },
   premio() { this.tono(660, 990, 0.12, 0.15, 'triangle'); this.tono(990, 1480, 0.14, 0.13, 'triangle', 0.1); },
+  poder() { this.tono(440, 880, 0.18, 0.16, 'square'); this.tono(660, 1320, 0.2, 0.13, 'triangle', 0.1); this.tono(990, 1980, 0.22, 0.1, 'triangle', 0.2); },
+  tuerca() { this.tono(1500, 2100, 0.05, 0.07, 'square'); },
+  comprar() { this.tono(520, 780, 0.1, 0.14, 'triangle'); this.tono(780, 1170, 0.12, 0.13, 'triangle', 0.08); this.tono(1170, 1560, 0.16, 0.12, 'triangle', 0.16); },
   golpe() { this.ruido(0.18, 0.4, 500, 'lowpass', 100); },
   impacto() { this.tono(1700, 1100, 0.04, 0.05, 'square'); },
   escudo() { this.tono(2400, 1800, 0.05, 0.03, 'sine'); },
@@ -1197,8 +1200,30 @@ function crearCoheteModelo(enemigo) {
   return unirHijos(g);
 }
 // Premios: huesito, caja de cohetes, estrella
+// Dibujo de un emoji en una textura (para los poderes)
+function spriteEmoji(txt, tam) {
+  const t = texturaCanvas(128, 128, (x) => { x.font = '92px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, 64, 70); });
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false })); s.scale.setScalar(tam); return s;
+}
 function crearPremioModelo(tipo) {
   const g = new THREE.Group(); let color;
+  if (tipo === 'tuerca') {
+    // una tuerca de los robots de Petunia: la moneda del Taller de Nucita
+    const hex = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.55, 6), new THREE.MeshLambertMaterial({ color: 0xb8c4cc, emissive: 0x2a3036 }));
+    hex.rotation.x = PI / 2; g.add(hex);
+    const hueco = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.6, 12), new THREE.MeshBasicMaterial({ color: 0x1a2028 })); hueco.rotation.x = PI / 2; g.add(hueco);
+    g.add(new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.07, 6, 20), new THREE.MeshBasicMaterial({ color: 0x9fe0ff, transparent: true, opacity: 0.55 })));
+    g.scale.setScalar(1.1); return g;
+  }
+  if (tipo.startsWith('poder_')) {
+    const P = PODERES[tipo.slice(6)];
+    const orbe = new THREE.Mesh(G.esfera, new THREE.MeshBasicMaterial({ color: P.color, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending }));
+    orbe.scale.setScalar(2.4); g.add(orbe);
+    g.add(spriteEmoji(P.ico, 4.2));
+    const r1 = new THREE.Mesh(new THREE.TorusGeometry(2.8, 0.14, 6, 32), new THREE.MeshBasicMaterial({ color: P.color, transparent: true, opacity: 0.85 }));
+    const r2 = r1.clone(); r2.rotation.x = PI / 2; g.add(r1, r2);
+    return g;
+  }
   if (tipo === 'hueso') {
     parte(G.cil, 0xfff3dc, [0, 0, 0], [0.4, 2.6, 0.4], g, [0, 0, PI / 2]);
     for (const x of [-1.35, 1.35]) for (const y of [-0.38, 0.38]) parte(G.bola, 0xfff3dc, [x, y, 0], 0.5, g);
@@ -2003,6 +2028,107 @@ const juego = {
   camaraModo: 'fuera', temblor: 0, intro: 0, lider: new THREE.Vector3(), tutorial: [], tTut: 0,
   combo: 0, tCombo: 0
 };
+// ---- Taller de Nucita: mejoras que se compran con tuercas y se guardan ----
+// Las tuercas las sueltan los robots de Petunia al caer. Cada mejora tiene 3 niveles.
+const MEJORAS = [
+  { id: 'blindaje', ico: '🛡️', nombre: 'Blindaje', desc: ['Vida máxima: 100', 'Vida máxima: 125', 'Vida máxima: 150', 'Vida máxima: 175'] },
+  { id: 'ametra', ico: '🔫', nombre: 'Ametralladoras', desc: ['Disparo normal', 'Disparan 15 % más rápido', 'Disparan 30 % más rápido', 'Disparan 45 % más rápido y se recalientan menos'] },
+  { id: 'cohetes', ico: '🚀', nombre: 'Cohetes', desc: ['Empiezas con 6 cohetes', 'Empiezas con 8 cohetes', 'Empiezas con 10 cohetes', 'Empiezas con 12 y caben hasta 18'] },
+  { id: 'ladrido', ico: '🐶', nombre: 'Ladrido de Nucita', desc: ['Se carga en 14 segundos', 'Se carga en 11 segundos', 'Se carga en 8 segundos', 'Se carga en 6 segundos'] },
+  { id: 'olfato', ico: '👃', nombre: 'Olfato de Nucita', desc: ['Solo recoges lo que tocas', 'Los premios cercanos vienen solitos', 'Los premios vienen desde más lejos', 'Los premios vienen desde muy lejos'] }
+];
+const PRECIOS = [12, 25, 45];
+let mejoras = Object.assign({ blindaje: 0, ametra: 0, cohetes: 0, ladrido: 0, olfato: 0 }, Guardado.get('mejoras', {}) || {});
+let tuercas = Math.max(0, Number(Guardado.get('tuercas', 0)) || 0);
+const nivelMejora = id => clamp(mejoras[id] | 0, 0, 3);
+const vidaMax = () => 100 + 25 * nivelMejora('blindaje');
+const cadencia = () => 12 * (1 + 0.15 * nivelMejora('ametra'));
+const calorDisparo = () => nivelMejora('ametra') >= 3 ? 0.022 : 0.03;
+const cohetesInicio = () => 6 + 2 * nivelMejora('cohetes');
+const cohetesMax = () => 12 + 2 * nivelMejora('cohetes');
+const cargaLadrido = () => [14, 11, 8, 6][nivelMejora('ladrido')];
+const radioOlfato = () => [0, 30, 55, 85][nivelMejora('olfato')];
+function guardarTaller() { Guardado.set('mejoras', mejoras); Guardado.set('tuercas', tuercas); }
+let tallerDesde = 'pInicio';
+function abrirTaller(desde) {
+  tallerDesde = desde || 'pInicio'; dibujarTaller(); mostrarPantalla('pTaller');
+  const frases = ['¡Guau! Con tuercas de robot le pongo cosas nuevas al avión.', '¡Tráeme tuercas y te dejo el avión como nuevo!', 'Con la llave en la boca soy la mejor mecánica de Colombia 🐶🔧'];
+  $('tlNucita').textContent = '🐶 ' + elegir(frases);
+}
+function cerrarTaller() { mostrarPantalla(tallerDesde); if (tallerDesde === 'pInicio') prepararMenu(); }
+function dibujarTaller() {
+  $('tlTuercas').textContent = tuercas;
+  const lista = $('tlLista'); lista.textContent = '';
+  for (const M of MEJORAS) {
+    const n = nivelMejora(M.id), max = n >= 3, precio = max ? 0 : PRECIOS[n];
+    const it = document.createElement('div'); it.className = 'tlItem';
+    const ico = document.createElement('div'); ico.className = 'tlIco'; ico.textContent = M.ico;
+    const tx = document.createElement('div');
+    const h = document.createElement('h3'); h.textContent = M.nombre + ' ';
+    const pips = document.createElement('span'); pips.className = 'tlPips'; pips.textContent = '●'.repeat(n) + '○'.repeat(3 - n); pips.setAttribute('aria-label', 'Nivel ' + n + ' de 3'); h.appendChild(pips);
+    const p = document.createElement('p'); p.textContent = max ? M.desc[3] + ' · ¡al máximo!' : 'Ahora: ' + M.desc[n] + ' → ' + M.desc[n + 1];
+    tx.append(h, p);
+    const b = document.createElement('button'); b.className = 'btn';
+    b.textContent = max ? 'Listo ✔' : 'Mejorar · 🔩 ' + precio; b.disabled = max || tuercas < precio;
+    b.onclick = () => {
+      if (nivelMejora(M.id) >= 3 || tuercas < precio) return;
+      tuercas -= precio; mejoras[M.id] = n + 1; guardarTaller(); Sonido.iniciar(); Sonido.comprar();
+      $('tlNucita').textContent = '🐶 ¡Listo! ' + M.nombre + ' nivel ' + (n + 1) + '. ¡Guau!';
+      dibujarTaller();
+    };
+    it.append(ico, tx, b); lista.appendChild(it);
+  }
+}
+
+// ---- Poderes temporales: los sueltan los enemigos y duran unos segundos ----
+const PODERES = {
+  triple: { ico: '🔱', nombre: 'Disparo triple', dur: 12, color: 0x5ff8ff, frase: '¡Tres balas a la vez! ¡Guau!' },
+  escudo: { ico: '🛡️', nombre: 'Escudo de Nucita', dur: 10, color: 0xff7fd0, frase: '¡Te cubro con mi escudo!' },
+  turbo: { ico: '⚡', nombre: 'Turbo', dur: 8, color: 0xffd23f, frase: '¡Turbo! ¡Se me vuelan las orejas!' },
+  iman: { ico: '🧲', nombre: 'Imán', dur: 15, color: 0xff6a6a, frase: '¡Todos los premios vienen hacia nosotros!' }
+};
+let burbuja = null;
+function poder(t) { return (jugador.poderes[t] || 0) > 0; }
+function activarPoder(t) {
+  const P = PODERES[t]; if (!P) return;
+  jugador.poderes[t] = P.dur;
+  aviso(P.ico + ' ¡' + P.nombre + '!', 1.6); Nucita.decir(P.frase, null, 0); Nucita.celebrar = Math.max(Nucita.celebrar, 1.2);
+  Sonido.poder();
+  if (t === 'escudo' && !burbuja) {
+    burbuja = new THREE.Mesh(G.esfera, new THREE.MeshBasicMaterial({ color: 0xff7fd0, transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    burbuja.scale.set(4.6, 2.4, 5.2); avioneta.add(burbuja);
+  }
+}
+function quitarPoderes() { jugador.poderes = {}; if (burbuja) burbuja.visible = false; }
+function actualizarPoderes(dt) {
+  const P = jugador.poderes;
+  for (const t in P) {
+    const antes = P[t]; P[t] -= dt;
+    if (antes > 3 && P[t] <= 3) Nucita.decir(PODERES[t].ico + ' ¡Se acaba el ' + PODERES[t].nombre.toLowerCase() + '!', 'acaba' + t, 5, false);
+    if (P[t] <= 0) delete P[t];
+  }
+  if (burbuja) {
+    burbuja.visible = poder('escudo') && (P.escudo > 2 || Math.floor(tiempo * 8) % 2 === 0);
+    burbuja.material.opacity = lerp(burbuja.material.opacity, 0.12 + Math.sin(tiempo * 6) * 0.04, 1 - Math.exp(-4 * dt));
+  }
+  // turbo: llamarada detrás del avión
+  if (poder('turbo') && cuadro % 2 === 0) emitir(_pa.set(rand(-0.6, 0.6), rand(-0.3, 0.3), 3.2).applyMatrix4(avioneta.matrixWorld), elegir([0xffd23f, 0xff9a1f]), _pv.set(0, 0, 0), 0.3, 0.55, 0.1);
+}
+function dibujarPoderes() {
+  const caja = H.poderes, P = jugador.poderes, claves = Object.keys(P);
+  const firma = claves.join(',');
+  if (caja._firma !== firma) {
+    caja._firma = firma; caja.textContent = '';
+    for (const t of claves) {
+      const d = document.createElement('div'); d.className = 'poder'; d.dataset.t = t;
+      const ico = document.createElement('span'); ico.className = 'ico'; ico.textContent = PODERES[t].ico;
+      const bar = document.createElement('div'); bar.className = 'barra'; const i = document.createElement('i'); i.style.background = '#' + PODERES[t].color.toString(16).padStart(6, '0'); bar.appendChild(i);
+      d.append(ico, bar); caja.appendChild(d);
+    }
+  }
+  for (const d of caja.children) { const t = d.dataset.t, v = Math.max(0, P[t] || 0); d.firstChild.nextSibling.firstChild.style.width = (v / PODERES[t].dur * 100) + '%'; d.classList.toggle('acaba', v < 3); }
+}
+
 // ---- Dificultad: Normal o Difícil ----
 // Difícil: enemigos más rápidos y fuertes, más enemigos por oleada, jefes con más vida y menos ayuda para apuntar.
 let modoDificil = Guardado.get('dificil', false);
@@ -2139,7 +2265,7 @@ function ponerAvion(epoca) {
 }
 const jugador = {
   pos: avioneta.position, yaw: 0, pitch: 0, roll: 0, vel: 46, velObj: 46, av: AVIONES[2030],
-  vida: 100, cohetes: 6, calor: 0, sobrecalentado: false, carga: 0.5, invul: 0,
+  vida: 100, vidaMax: 100, cohetes: 6, calor: 0, sobrecalentado: false, carga: 0.5, invul: 0, poderes: {},
   cdBala: 0, cdCohete: 0, lado: 0, inX: 0, inY: 0, yawVel: 0, adelante: new THREE.Vector3(0, 0, -1), muerto: false, entrada: { x: 0, y: 0 }
 };
 function aplicarOrientacion() {
@@ -2177,7 +2303,7 @@ function actualizarJugador(dt) {
     J.yawVel = lerp(J.yawVel, -J.inX * AV.giro * fino, 1 - Math.exp(-7 * dt));
     J.yaw += J.yawVel * dt;
     J.roll = lerp(J.roll, -J.inX * 0.85, 1 - Math.exp(-4 * dt));
-    J.velObj = ent.acel ? AV.max : (ent.freno ? AV.min : AV.vel);
+    J.velObj = (ent.acel ? AV.max : (ent.freno ? AV.min : AV.vel)) * (poder('turbo') ? 1.35 : 1);
     J.vel = lerp(J.vel, J.velObj, 1 - Math.exp(-1.6 * dt));
   }
   J.entrada = { x: J.inX, y: J.inY, acel: ent.acel, freno: ent.freno, fuego: ent.fuego };
@@ -2200,17 +2326,23 @@ function actualizarJugador(dt) {
   aplicarOrientacion();
   // Armas
   J.cdBala -= dt; J.cdCohete -= dt; J.invul -= dt;
-  if (ent.fuego && !J.sobrecalentado && J.cdBala <= 0) { dispararJugador(); J.cdBala = 1 / 12; J.calor += 0.03; }
+  const turbo = poder('turbo');
+  if (ent.fuego && !J.sobrecalentado && J.cdBala <= 0) { dispararJugador(); J.cdBala = 1 / (cadencia() * (turbo ? 1.5 : 1)); if (!turbo) J.calor += calorDisparo(); }
+  actualizarPoderes(dt);
   J.calor = Math.max(0, J.calor - dt * (ent.fuego && !J.sobrecalentado ? 0.08 : 0.45));
   if (J.calor >= 1 && !J.sobrecalentado) { J.sobrecalentado = true; aviso('¡Armas recalentadas!', 1.5); }
   if (J.sobrecalentado && J.calor < 0.35) J.sobrecalentado = false;
-  J.carga = Math.min(1, J.carga + dt / 14);
+  J.carga = Math.min(1, J.carga + dt / cargaLadrido());
   avioneta.visible = !(J.invul > 0 && juego.camaraModo === 'fuera' && Math.floor(tiempo * 12) % 2 === 0);
   Sonido.motor(J.vel, true);
 }
 function danioJugador(n, forzado) {
   const J = jugador;
   if ((!forzado && J.invul > 0) || J.muerto || juego.estado !== 'jugando') return;
+  if (poder('escudo')) { // el escudo de Nucita aguanta todo
+    if (burbuja) burbuja.material.opacity = 0.45; Sonido.escudo(); juego.temblor = Math.max(juego.temblor, 0.2);
+    Nucita.decir('¡Mi escudo aguanta!', 'escudoAguanta', 4, false); return;
+  }
   J.vida -= n; juego.temblor = Math.max(juego.temblor, 0.6);
   $('flash').style.opacity = 1; clearTimeout(danioJugador._t); danioJugador._t = setTimeout(() => $('flash').style.opacity = 0, 160);
   Sonido.golpe();
@@ -2379,7 +2511,7 @@ function tomar(pool) { for (const o of pool) if (!o.activa) { o.activa = true; o
 function soltar(o) { o.activa = false; o.m.visible = false; }
 const matBala = new THREE.MeshBasicMaterial({ color: 0xffe680, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
 const matBalaE = brillo(0xff3366, 0.95), matCanonazo = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 60 }), matLaserE = brillo(0xff4fd8, 0.95);
-const balasJ = crearPool(70, () => { const m = new THREE.Mesh(G.caja, matBala); m.scale.set(0.2, 0.2, 5); return m; });
+const balasJ = crearPool(150, () => { const m = new THREE.Mesh(G.caja, matBala); m.scale.set(0.2, 0.2, 5); return m; });
 const balasE = crearPool(80, () => new THREE.Mesh(G.bola, matBalaE));
 
 function buscarObjetivo(minDot, maxDist) {
@@ -2406,6 +2538,15 @@ function dispararJugador() {
   const b = tomar(balasJ); if (!b) return;
   b.pos.copy(origen); b.prev.copy(origen); b.vel.copy(dir).multiplyScalar(vb); b.vida = 1.4; b.obj = obj; b.vb = vb;
   b.m.lookAt(_c.copy(origen).add(dir));
+  if (poder('triple')) { // dos balas más, abiertas en abanico
+    _pa.set(0, 1, 0).applyQuaternion(avioneta.quaternion);
+    for (const s of [-1, 1]) {
+      const b2 = tomar(balasJ); if (!b2) break;
+      _d.copy(dir).applyAxisAngle(_pa, s * 0.075);
+      b2.pos.copy(origen); b2.prev.copy(origen); b2.vel.copy(_d).multiplyScalar(vb); b2.vida = 1.1; b2.obj = null; b2.vb = vb;
+      b2.m.lookAt(_c.copy(origen).add(_d));
+    }
+  }
   u.tFogonazo[lado] = 0.05;
   juego.temblor = Math.max(juego.temblor, 0.05);
   Sonido.disparo(AV.sonido === 'jet');
@@ -2502,14 +2643,31 @@ const premios = [];
 function crearPremio(tipo, pos) {
   const m = proto('premio_' + tipo, () => crearPremioModelo(tipo)).clone();
   m.position.copy(pos); escena.add(m);
-  premios.push({ tipo, m, pos: m.position, base: pos.y, f: rand(0, 6) });
+  // las tuercas se desaparecen si nadie las recoge (para que el cielo no se llene)
+  premios.push({ tipo, m, pos: m.position, base: pos.y, f: rand(0, 6), vida: tipo === 'tuerca' ? 28 : Infinity });
+}
+// soltar tuercas alrededor de un enemigo derribado
+function soltarTuercas(pos, n) {
+  for (let k = 0; k < n; k++) { const p = pos.clone().add(_pv.set(rand(-9, 9), rand(-2, 6), rand(-9, 9))); p.y = Math.max(p.y, altura(p.x, p.z) + 12); crearPremio('tuerca', p); }
 }
 function actualizarPremios(dt) {
+  const J = jugador, iman = poder('iman'), olfato = radioOlfato();
   for (let i = premios.length - 1; i >= 0; i--) {
-    const p = premios[i]; p.f += dt; p.m.rotation.y += dt * 1.8; p.pos.y = p.base + Math.sin(p.f * 2) * 1.2;
-    if (!jugador.muerto && p.pos.distanceTo(jugador.pos) < 8) {
-      if (p.tipo === 'hueso') { jugador.vida = Math.min(100, jugador.vida + 25); Nucita.decir('¡Un huesito! ¡Ñam ñam!', 'hueso', 3); Nucita.celebrar = Math.max(Nucita.celebrar, 1.2); }
-      else if (p.tipo === 'caja') { jugador.cohetes = Math.min(12, jugador.cohetes + 3); aviso('+3 cohetes 🚀', 1.2); }
+    const p = premios[i]; p.f += dt; p.vida -= dt; p.m.rotation.y += dt * (p.tipo === 'tuerca' ? 4 : 1.8);
+    if (p.vida <= 0) { escena.remove(p.m); premios.splice(i, 1); continue; }
+    p.m.visible = p.vida > 5 || Math.floor(p.vida * 6) % 2 === 0;
+    // imán u olfato de Nucita: los premios vuelan hacia el avión
+    const d = p.pos.distanceTo(J.pos), radio = iman ? 170 : Math.max(p.tipo === 'tuerca' ? 26 : 0, olfato);
+    if (!J.muerto && d < radio && d > 1) {
+      const paso = Math.min(d, (70 + J.vel * 1.2) * dt);
+      _pv.subVectors(J.pos, p.pos).multiplyScalar(paso / d); p.pos.x += _pv.x; p.pos.z += _pv.z; p.base += _pv.y;
+    }
+    p.pos.y = p.base + Math.sin(p.f * 2) * 1.2;
+    if (!J.muerto && d < 8) {
+      if (p.tipo === 'tuerca') { tuercas++; juego.tuercasNivel++; guardarTaller(); Sonido.tuerca(); popup(p.pos, '+1 🔩'); escena.remove(p.m); premios.splice(i, 1); continue; }
+      if (p.tipo.startsWith('poder_')) { activarPoder(p.tipo.slice(6)); escena.remove(p.m); premios.splice(i, 1); for (let k = 0; k < 16; k++) emitir(p.pos, PODERES[p.tipo.slice(6)].color, _pv.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(16), 0.6, 0.6, 0.1); continue; }
+      if (p.tipo === 'hueso') { J.vida = Math.min(J.vidaMax, J.vida + 25); Nucita.decir('¡Un huesito! ¡Ñam ñam!', 'hueso', 3); Nucita.celebrar = Math.max(Nucita.celebrar, 1.2); }
+      else if (p.tipo === 'caja') { J.cohetes = Math.min(cohetesMax(), J.cohetes + 3); aviso('+3 cohetes 🚀', 1.2); }
       else { juego.puntos += 100; popup(p.pos, '+100 ⭐'); }
       Sonido.premio();
       for (let k = 0; k < 10; k++) emitir(p.pos, 0xfff27a, _pv.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(12), 0.5, 0.5, 0.1);
@@ -2719,6 +2877,10 @@ function derribar(e) {
   if (!e.jefe) { // combos: derribos seguidos dan más puntos
     juego.combo = juego.tCombo > 0 ? juego.combo + 1 : 1; juego.tCombo = 3.5;
     if (juego.combo >= 2) { pts = Math.round(pts * (1 + (juego.combo - 1) * 0.5)); aviso('¡Combo x' + juego.combo + '!', 1); }
+    // rachas: Nucita premia los derribos seguidos
+    if (juego.combo === 3) { jugador.cohetes = Math.min(cohetesMax(), jugador.cohetes + 1); popup(e.pos, '¡Racha! +1 🚀'); }
+    if (juego.combo === 5) { jugador.carga = Math.min(1, jugador.carga + 0.4); Nucita.decir('¡Qué racha! ¡Me estoy cargando!', null, 0); }
+    if (juego.combo === 7) { activarPoder(elegir(Object.keys(PODERES))); }
   }
   juego.puntos += pts; juego.derribados++; popup(e.pos, '+' + pts);
   if (e.jefe) {
@@ -2727,7 +2889,11 @@ function derribar(e) {
     Nucita.celebrar = 4.5; Nucita.decir('¡Guau guau! ¡Lo logramos!', null, 0);
     juego.fase = 'fin'; juego.tFin = 4.5;
     for (let k = 0; k < 3; k++) crearPremio(elegir(['estrella', 'hueso']), e.pos.clone().add(new THREE.Vector3(rand(-15, 15), 10, rand(-15, 15))).setY(Math.max(e.pos.y, 20) + 10));
+    soltarTuercas(e.pos, 10);
+    for (let k = 0; k < 2; k++) crearPremio('poder_' + elegir(Object.keys(PODERES)), e.pos.clone().add(new THREE.Vector3(rand(-20, 20), 0, rand(-20, 20))).setY(Math.max(e.pos.y, 25) + 8));
   } else {
+    soltarTuercas(e.pos, Math.random() < 0.45 ? 2 : 1);
+    if (Math.random() < 0.11) { const pp = e.pos.clone(); pp.y = Math.max(pp.y, altura(pp.x, pp.z) + 25); crearPremio('poder_' + elegir(Object.keys(PODERES)), pp); }
     if (Math.random() < 0.3) { const pp = e.pos.clone(); pp.y = Math.max(pp.y, altura(pp.x, pp.z) + 25); crearPremio(jugador.vida < 60 && Math.random() < 0.6 ? 'hueso' : elegir(['caja', 'estrella', 'hueso']), pp); }
     if (Math.random() < 0.25) Nucita.decir(elegir(['¡Guau! ¡Uno menos!', '¡Bien hecho!', '¡Toma eso, robot!']), 'derribo', 4);
   }
@@ -2973,6 +3139,7 @@ function animarNucita(dt) {
 const H = {
   vida: $('bVida'), txtVida: $('txtVida'), coh: $('txtCohetes'), lad: $('bLadrido'), txtLad: $('txtLadrido'),
   cal: $('bCalor'), pts: $('txtPuntos'), falt: $('txtFaltan'), niv: $('txtNivel'), anio: $('txtAnio'), ole: $('txtOleada'),
+  tuercas: $('txtTuercas'), poderes: $('poderes'),
   radar: $('radar'), jefeCaja: $('jefeCaja'), jefeBar: $('bJefe'), aviso: $('aviso'), tip: $('tip'),
   mira: $('mira'), impacto: $('impacto'), adelanto: $('adelanto'), fijado: $('fijado'), marcaPortal: $('marcaPortal'),
   globoJ: $('globoJefe'), tLadrido: $('tLadrido'), reloj: $('txtReloj')
@@ -3031,7 +3198,9 @@ function proyectarSuave(pos, el, st, k) {
 const stMira = { ok: false, x: 0, y: 0 }, stAdel = { ok: false, x: 0, y: 0, obj: null };
 function actualizarHUD(dt) {
   const J = jugador, kS = 1 - Math.exp(-16 * dt);
-  H.vida.style.width = J.vida + '%'; setT(H.txtVida, String(Math.ceil(J.vida)));
+  H.vida.style.width = (J.vida / J.vidaMax * 100) + '%'; setT(H.txtVida, String(Math.ceil(J.vida)));
+  setT(H.tuercas, String(tuercas));
+  dibujarPoderes();
   setT(H.coh, String(J.cohetes));
   H.lad.style.width = (J.carga * 100) + '%'; setT(H.txtLad, J.carga >= 1 ? (ES_TACTIL ? '¡LISTO!' : '¡LISTO! Q') : '');
   H.cal.style.width = (J.calor * 100) + '%'; H.cal.style.opacity = J.sobrecalentado ? (Math.sin(tiempo * 20) > 0 ? 1 : 0.3) : 1;
@@ -3194,7 +3363,7 @@ function estacionarAvioneta() {
   jugador.pos.set(0, 1.8, 22); aplicarOrientacion(); avioneta.visible = true;
 }
 function irAlMenu() {
-  sala.visible = false; limpiarNivel(); montarEscenario(0); ponerAvion(2030); estacionarAvioneta();
+  quitarPoderes(); sala.visible = false; limpiarNivel(); montarEscenario(0); ponerAvion(2030); estacionarAvioneta();
   juego.estado = 'menu'; mostrarPantalla('pInicio'); prepararMenu(); Sonido.motor(0, false);
   Nucita.celebrar = 0; Nucita.tSusto = 0; camara.fov = 65;
   ajustarVista();
@@ -3203,18 +3372,18 @@ function cargarNivel(i) {
   limpiarNivel(); juego.nivel = i; const N = NIVELES[i]; juego.dif = N.dif + (modoDificil ? 0.8 : 0); montarEscenario(i); ponerAvion(N.avion);
   const AV = jugador.av;
   Object.assign(jugador, {
-    vida: 100, cohetes: 6, calor: 0, sobrecalentado: false, carga: 0.5, invul: 0, cdBala: 0, cdCohete: 0,
+    vida: vidaMax(), vidaMax: vidaMax(), cohetes: cohetesInicio(), calor: 0, sobrecalentado: false, carga: 0.5, invul: 0, cdBala: 0, cdCohete: 0, poderes: {},
     muerto: false, vel: N.despegue ? 0 : AV.vel, velObj: AV.vel, pitch: 0, roll: 0, entrada: { x: 0, y: 0 },
     yaw: N.despegue ? 0 : Math.atan2(-(juego.centro.x - N.inicio.x), -(juego.centro.z - N.inicio.z))
   });
   jugador.pos.set(N.inicio.x, N.inicio.y, N.inicio.z); aplicarOrientacion(); avioneta.visible = true;
   juego.intro = N.despegue ? 3.6 : 0; juego.fase = 'oleadas'; juego.oleada = -1; juego.tOleada = N.despegue ? 9 : 3;
-  juego.derribados = 0; juego.temblor = 0; juego.combo = 0; juego.tCombo = 0;
+  juego.derribados = 0; juego.temblor = 0; juego.combo = 0; juego.tCombo = 0; juego.tuercasNivel = 0;
   setT(H.niv, N.ciudad + (modoDificil ? ' · 😈' : '')); setT(H.anio, String(N.anio)); setT(H.ole, '¡Prepárate!');
   srand(i * 99 + 5);
   for (let k = 0; k < 12; k++) {
     const a = rr(0, 6.28), r = rr(80, 600), x = juego.centro.x + Math.cos(a) * r, z = juego.centro.z + Math.sin(a) * r;
-    crearPremio(elegirR(['hueso', 'caja', 'estrella', 'estrella']), new THREE.Vector3(x, altura(x, z) + rr(30, 90), z));
+    crearPremio(k < 2 ? 'poder_' + Object.keys(PODERES)[(i + k) % 4] : elegirR(['hueso', 'caja', 'estrella', 'estrella']), new THREE.Vector3(x, altura(x, z) + rr(30, 90), z));
   }
   juego.tutorial = i === 0 ? (ES_TACTIL ? TUT_TACTIL : TUT_PC).slice() : []; juego.tTut = 1;
   Nucita.cds = {}; Nucita.celebrar = 0; Nucita.tSusto = 0;
@@ -3246,12 +3415,13 @@ function nivelCompletado() {
   $('tituloNivelOk').textContent = N.portal ? '¡Entraste al portal!' : '¡Misión cumplida!';
   $('resNivel').innerHTML = (N.portal ? `Petunia huyó al pasado. ¡Rumbo a ${sig.ciudad} en ${sig.anio}! 🌀` : `${N.ciudad} ${N.anio} está a salvo 🎉. Petunia escapó a ${sig.ciudad} ${sig.anio}.`) +
     `<br>🤖 Derribos: <b>${juego.derribados}</b> · ⭐ Puntos: <b>${juego.puntos}</b> · ⏱ Quedan: <b>${fmtTiempo(reloj)}</b>` +
+    `<br>🔩 Tuercas: <b>+${juego.tuercasNivel}</b> (tienes ${tuercas}). ¡Llévalas al Taller de Nucita! 🔧` +
     `<div class="dato">💡 <b>¿Sabías que...?</b> ${N.dato}</div><div class="dato nuc">🐶 Nucita: ${N.final}</div>`;
   mostrarPantalla('pNivel');
 }
 function gameOver() {
   juego.estado = 'gameover'; guardarRecord(); guardarReloj();
-  $('resGO').textContent = `⭐ Puntos: ${juego.puntos}`; mostrarPantalla('pGameOver');
+  $('resGO').textContent = `⭐ Puntos: ${juego.puntos} · 🔩 Te quedas con tus ${tuercas} tuercas`; mostrarPantalla('pGameOver');
 }
 function mostrarFinal() {
   juego.estado = 'final'; guardarRecord();
@@ -3402,6 +3572,10 @@ $('dfDificil').onclick = () => elegirModo(true);
 $('btnJugar').onclick = () => { const n = nivelAlcanzado(); if (n === 0 && !Guardado.get('introVista', false)) empezarIntro(() => empezar(0)); else empezar(n); };
 $('btnIntro').onclick = () => empezarIntro(null);
 $('btnHangar').onclick = abrirHangar;
+$('btnTaller').onclick = () => abrirTaller('pInicio');
+$('btnTaller2').onclick = () => abrirTaller('pNivel');
+$('btnTallerGO').onclick = () => abrirTaller('pGameOver');
+$('tlVolver').onclick = cerrarTaller;
 $('btnSaltar').onclick = finIntro;
 $('hgAnt').onclick = () => verHangar(hgIdx - 1);
 $('hgSig').onclick = () => verHangar(hgIdx + 1);

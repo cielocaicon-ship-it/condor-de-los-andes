@@ -17,10 +17,12 @@
     <div class="fila"><span class="ico">❤️</span><div class="barra"><i id="bVida"></i></div><span id="txtVida">100</span></div>
     <div class="fila"><span class="ico">🚀</span><span id="txtCohetes">6</span><span class="ico" style="margin-left:auto">🔫</span><div class="barra" style="max-width:90px"><i id="bCalor"></i></div></div>
     <div class="fila"><span class="ico">🐶</span><div class="barra"><i id="bLadrido"></i></div><span id="txtLadrido" style="font-size:11px"></span></div>
+    <div id="poderes"></div>
   </div>
   <div id="hudCentro" class="caja-hud"><div id="txtNivel">Cúcuta</div><div id="txtAnio">2030</div><div id="txtOleada">¡Prepárate!</div><div id="txtReloj">⏱ 20:00</div></div>
   <div id="hudDer" class="caja-hud">
     <div>⭐ <span id="txtPuntos">0</span></div>
+    <div>🔩 <span id="txtTuercas">0</span></div>
     <div>🤖 Faltan: <span id="txtFaltan">0</span></div>
     <canvas id="radar" width="104" height="104"></canvas>
   </div>
@@ -69,6 +71,7 @@
     <button class="btn" id="btnJugar">¡A volar! ✈️</button>
     <button class="btn sec" id="btnIntro">Ver intro 🎬</button>
     <button class="btn sec" id="btnHangar">Hangar ✈️</button>
+    <button class="btn sec" id="btnTaller">Taller de Nucita 🔧</button>
     <button class="btn sec" id="btnControles">Controles</button>
     <div class="niveles" id="listaNiveles"></div>
     <label class="opcion oculto" id="filaGiro"><input type="checkbox" id="chkGiro"> Manejar inclinando el celular (giroscopio)</label>
@@ -97,6 +100,18 @@
   </div>
 </div>
 
+<!-- ============ TALLER DE NUCITA ============ -->
+<div id="pTaller" class="pantalla oculto">
+  <div class="panel taller">
+    <h2>Taller de Nucita 🔧</h2>
+    <p id="tlNucita" class="tlNucita"></p>
+    <div class="tlBolsa">🔩 Tienes <b id="tlTuercas">0</b> tuercas</div>
+    <div id="tlLista" class="tlLista"></div>
+    <p class="tlNota">Las tuercas las sueltan los robots de Petunia al caer. Las mejoras se guardan para todos los niveles.</p>
+    <button class="btn" id="tlVolver">Volver</button>
+  </div>
+</div>
+
 <!-- ============ PAUSA ============ -->
 <div id="pPausa" class="pantalla oculto">
   <div class="panel">
@@ -115,6 +130,7 @@
     <h2 id="tituloNivelOk">¡Misión cumplida!</h2>
     <p id="resNivel"></p>
     <button class="btn" id="btnSiguiente">Siguiente época ➜</button>
+    <button class="btn sec" id="btnTaller2">Taller de Nucita 🔧</button>
     <button class="btn sec" id="btnMenu2">Menú</button>
   </div>
 </div>
@@ -126,6 +142,7 @@
     <p>Nucita dice: "¡Guau! ¡Intentémoslo otra vez, yo sé que podemos!"</p>
     <p id="resGO"></p>
     <button class="btn" id="btnReintentar">Reintentar nivel</button>
+    <button class="btn sec" id="btnTallerGO">Taller de Nucita 🔧</button>
     <button class="btn sec" id="btnMenu3">Menú</button>
   </div>
 </div>
